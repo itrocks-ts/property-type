@@ -130,7 +130,7 @@ Parses a declaration TypeScript file and extracts property types from the define
 **Returns:**
 `PropertyTypes<T>`: A mapping of property names to their types.
 
-### function strToPrimitiveType
+### strToPrimitiveType
 
 ```ts
 function strToPrimitiveType(type: string): PrimitiveType | Type

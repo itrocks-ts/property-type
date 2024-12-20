@@ -47,5 +47,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json"
 	},
 	"types": "./esm/property-type.d.ts",
-	"version": "0.0.1"
+	"version": "0.0.2"
 }

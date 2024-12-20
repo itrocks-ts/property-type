@@ -77,44 +77,6 @@ reflection library, [@itrocks/reflect](https://www.npmjs.com/package/@itrocks/re
 which leverages [propertyTypesFromFile](#propertytypesfromfile)
 and additionally handles **caching** and **inheritance**.
 
-## CollectionType
-
-```ts
-class CollectionType<T extends object = object, PT extends object = object> {
-	constructor(public containerType: Type<T>, public elementType: PrimitiveType | Type<PT>)
-}
-```
-
-**Properties:**
-- `collectionType`: The type of the collection container, such as
-  [Array](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array),
-  [Map](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Map),
-  or [Set](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Set). 
-- `elementType`: the type of the elements contained in the collection.
-
-## Types
-
-### PrimitiveType
-
-```ts
-type PrimitiveType = typeof BigInt | Boolean | Number | Object | String | Symbol | undefined
-```
-Defines the set of supported primitive types. 
-
-### PropertyType
-
-```ts
-type PropertyType<T extends object = object, PT extends object = object> = CollectionType<T, PT> | PrimitiveType | Type<PT>
-```
-Represents any single property type, either primitive or complex.
-
-### PropertyTypes
-
-```ts
-type PropertyTypes<T extends object = object> = Record<string, PropertyType<T>>
-```
-A mapping of property names to their types.
-
 ## Functions
 
 ### propertyTypesFromFile
@@ -140,3 +102,44 @@ into the corresponding `PrimitiveType`.
 
 This function only works for JavaScript primitive type strings
 and does not handle `CollectionType` or custom class `Type`.
+
+## Types
+
+### PrimitiveType
+
+```ts
+type PrimitiveType = typeof BigInt | Boolean | Number | Object | String | Symbol | undefined
+```
+Defines the set of supported primitive types. 
+
+### PropertyType
+
+```ts
+type PropertyType<T extends object = object, PT extends object = object> = CollectionType<T, PT> | PrimitiveType | Type<PT>
+```
+Represents any single property type, either primitive or complex.
+
+### PropertyTypes
+
+```ts
+type PropertyTypes<T extends object = object> = Record<string, PropertyType<T>>
+```
+A mapping of property names to their types.
+
+## Classes
+
+### CollectionType
+
+```ts
+class CollectionType<T extends object = object, PT extends object = object> {
+	constructor(public containerType: Type<T>, public elementType: PrimitiveType | Type<PT>)
+}
+```
+An instance of `CollectionType` represents a property type that contains multiple elements.
+
+**Properties:**
+- `collectionType`: The type of the collection container, such as
+  [Array](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array),
+  [Map](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Map),
+  or [Set](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Set).
+- `elementType`: the type of the elements contained in the collection.

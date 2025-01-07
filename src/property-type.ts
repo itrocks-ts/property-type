@@ -44,7 +44,13 @@ export function propertyTypesFromFile<T extends object = object>(file: string)
 			}
 		}
 
-		if (ts.isClassDeclaration(node)) {
+		if (
+			ts.isClassDeclaration(node)
+			&& node.name
+			&& node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
+		) {
+			const className = node.name.getText()
+			typeImports[className] = { import: file, name: className }
 			node.members.forEach(member => {
 				if (ts.isPropertyDeclaration(member) && member.type) {
 					propertyTypes[(member.name as ts.Identifier).text] = strToType(member.type.getText(), typeImports)

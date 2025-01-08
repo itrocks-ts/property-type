@@ -1,8 +1,6 @@
 {
 	"compilerOptions": {
-		"module": "ES2022",
 		"outDir": "./esm"
 	},
-	"extends": "./tsconfig.json",
-	"include": ["./src/property-type.ts"]
+	"extends": "./tsconfig.json"
 }

@@ -24,6 +24,7 @@
 		"*/property-type.d.ts",
 		"*/property-type.js"
 	],
+	"homepage": "https://it.rocks",
 	"keywords": [
 		"collection",
 		"it.rocks",
@@ -44,8 +45,8 @@
 	"scripts": {
 		"build": "npm run build:cjs && npm run build:esm",
 		"build:cjs": "tsc -p tsconfig.cjs.json",
-		"build:esm": "tsc -p tsconfig.esm.json"
+		"build:esm": "tsc -p tsconfig.esm.json && node esm/esm"
 	},
 	"types": "./esm/property-type.d.ts",
-	"version": "0.0.4"
+	"version": "0.0.5"
 }

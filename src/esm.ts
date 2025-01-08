@@ -5,11 +5,14 @@ async function addJsExtensions(dir: string) {
 	for (const file of await readdir(dir)) {
 		const filePath = join(dir, file)
 		if ((await stat(filePath)).isFile() && filePath.endsWith('.js')) {
-			let content = (await readFile(filePath, 'utf-8')).toString()
-			content = "import { dirname } from 'node:path'\n" + content
-			content = "import { fileURLToPath } from 'node:url'\n" + content
-			content = content.replace(/from\s+['"](\..*?)(?<!\.js)['"]/g, "from '$1.js'")
-			content = content.replaceAll('__dirname', 'dirname(fileURLToPath(import.meta.url))')
+			const content =
+				"import { createRequire } from 'node:module'\n"
+				+ "const require = createRequire(import.meta.url)\n"
+				+ (file.includes('demo') ? "import { dirname } from 'node:path'\n" : '')
+				+ "import { fileURLToPath } from 'node:url'\n"
+				+ (await readFile(filePath, 'utf-8')).toString()
+				.replace(/from\s+['"](\..*?)(?<!\.js)['"]/g, "from '$1.js'")
+				.replaceAll('__dirname', 'dirname(fileURLToPath(import.meta.url))')
 			await writeFile(filePath, content, 'utf-8')
 		}
 	}

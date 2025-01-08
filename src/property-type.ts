@@ -1,7 +1,7 @@
-import Type from '@itrocks/class-type'
-import fs   from 'node:fs/promises'
-import path from 'node:path'
-import ts   from 'typescript'
+import Type                   from '@itrocks/class-type'
+import { readFileSync }       from 'node:fs'
+import { dirname, normalize } from 'node:path'
+import ts                     from 'typescript'
 
 export class CollectionType<T extends object = object, PT extends object = object>
 {
@@ -18,13 +18,13 @@ export type PropertyTypes<T extends object = object> = Record<string, PropertyTy
 type TypeImports = Record<string, { import: string, name: string }>
 
 export default propertyTypesFromFile
-export async function propertyTypesFromFile<T extends object = object>(file: string): Promise<PropertyTypes<T>>
+export function propertyTypesFromFile<T extends object = object>(file: string): PropertyTypes<T>
 {
-	const content    = await fs.readFile(file.substring(0, file.lastIndexOf('.')) + '.d.ts', 'utf8')
-	const filePath   = file.slice(0, file.lastIndexOf('/'))
+	const content    = readFileSync(file.substring(0, file.lastIndexOf('.')) + '.d.ts', 'utf8')
+	const filePath   = dirname(file)
 	const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
 
-	const propertyTypes: Record<string, Promise<PropertyType<T>>> = {}
+	const propertyTypes: Record<string, PropertyType<T>> = {}
 	const typeImports:   TypeImports      = {}
 
 	function parseNode(node: ts.Node)
@@ -35,7 +35,7 @@ export async function propertyTypesFromFile<T extends object = object>(file: str
 				importPath += '.js'
 			}
 			const importFile = (importPath[0] === '.')
-				? path.normalize(filePath + '/' + importPath)
+				? normalize(filePath + '/' + importPath)
 				: importPath
 			if (node.importClause.name) {
 				typeImports[node.importClause.name.getText()] = { import: importFile, name: 'default' }
@@ -69,14 +69,10 @@ export async function propertyTypesFromFile<T extends object = object>(file: str
 	}
 
 	parseNode(sourceFile)
-	return Object.fromEntries(
-		await Promise.all(
-			Object.entries(propertyTypes).map(async ([key, value]) => [key, await value])
-		)
-	)
+	return propertyTypes
 }
 
-async function strToCollectionType(type: string, typeImports: TypeImports): Promise<CollectionType>
+function strToCollectionType(type: string, typeImports: TypeImports): CollectionType
 {
 	let collectionType: string | undefined
 	let elementType:    string
@@ -90,8 +86,8 @@ async function strToCollectionType(type: string, typeImports: TypeImports): Prom
 		elementType    = type.slice(indexOf + 1, -1)
 	}
 	return new CollectionType(
-		await strToType(collectionType, typeImports) as Type,
-		await strToType(elementType, typeImports)
+		strToType(collectionType, typeImports) as Type,
+		strToType(elementType, typeImports)
 	)
 }
 
@@ -107,7 +103,7 @@ export function strToPrimitiveType(type: string): PrimitiveType | Type
 	return (globalThis as any)[type] as Type
 }
 
-async function strToType(type: string, typeImports: TypeImports): Promise<PropertyType>
+function strToType(type: string, typeImports: TypeImports): PropertyType
 {
 	const endsWith = type[type.length - 1]
 	if ((endsWith === ']') || (endsWith === '>')) {
@@ -115,10 +111,6 @@ async function strToType(type: string, typeImports: TypeImports): Promise<Proper
 	}
 	const typeImport = typeImports[type]
 	return typeImport
-		? (
-			((typeof module !== 'undefined') && module.exports)
-				? require(typeImport.import)
-				: await import(typeImport.import)
-			)[typeImport.name]
+		? require(typeImport.import)[typeImport.name]
 		: strToPrimitiveType(type)
 }

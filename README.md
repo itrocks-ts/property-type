@@ -35,13 +35,11 @@ export class Something {
 	aCollection = new Array<CustomClass>()
 }
 
-(async () => {
-	const propertyTypes = await propertyTypesFromFile(__dirname + '/demo.js')
-	Object.entries(propertyTypes).forEach(([property, type]) => {
-		console.log('-', property, 'type is', type)
-	})
-	console.log('is somethingBig a BigInt ?', propertyTypes['somethingBig'] === BigInt)
-})()
+const propertyTypes = propertyTypesFromFile(__dirname + '/demo.js')
+Object.entries(propertyTypes).forEach(([property, type]) => {
+	console.log('-', property, 'type is', type)
+})
+console.log('is somethingBig a BigInt ?', propertyTypes['somethingBig'] === BigInt)
 ```
 
 After building and executing the files, the output is:
@@ -88,7 +86,7 @@ and additionally handles **caching** and **inheritance**.
 ### propertyTypesFromFile
 
 ```ts
-async function propertyTypesFromFile<T extends object = object>(file: string): Promise<PropertyTypes<T>>
+function propertyTypesFromFile<T extends object = object>(file: string): PropertyTypes<T>
 ```
 Parses a declaration TypeScript file and extracts property types from the defined class.
 
@@ -96,7 +94,7 @@ Parses a declaration TypeScript file and extracts property types from the define
 - `file`: Absolute path to the `.js` file. The `.d.ts` file must be in the same directory.
 
 **Returns:**
-`Promise<PropertyTypes<T>>`: A promise that resolves to a mapping of property names to their types.
+`PropertyTypes<T>`: A mapping of property names to their types.
 
 ### strToPrimitiveType
 

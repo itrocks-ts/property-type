@@ -35,25 +35,31 @@ export class Something {
 	aCollection = new Array<CustomClass>()
 }
 
-const propertyTypes = propertyTypesFromFile(__dirname + '/demo.js')
-Object.entries(propertyTypes).forEach(([property, type]) => {
-	console.log('-', property, 'type is', type)
-})
-console.log('is somethingBig a BigInt ?', propertyTypes['somethingBig'] === BigInt)
+(async () => {
+	const propertyTypes = await propertyTypesFromFile(__dirname + '/demo.js')
+	Object.entries(propertyTypes).forEach(([property, type]) => {
+		console.log('-', property, 'type is', type)
+	})
+	console.log('is somethingBig a BigInt ?', propertyTypes['somethingBig'] === BigInt)
+})()
 ```
 
 After building and executing the files, the output is:
 ```
-- name type is [Function: String]
-- age type is [Function: Number]
-- birthDay type is [Function: Date]
-- somethingBig type is [Function: BigInt]
-- somethingCustom type is [class CustomClass]
-- aCollection type is CollectionType {
+- name is a [Function: String]
+- age is a [Function: Number]
+- birthDay is a [Function: Date]
+- somethingBig is a [Function: BigInt]
+- somethingCustom is a [class CustomClass]
+- aCollection is a CollectionType {
   containerType: [Function: Array],
   elementType: [class CustomClass]
 }
+is name a String ? true
+is age a Number ? true
+is birthday a Date ? true
 is somethingBig a BigInt ? true
+is somethingCustom a CustomClass ? true
 ```
 
 ## Overview
@@ -82,7 +88,7 @@ and additionally handles **caching** and **inheritance**.
 ### propertyTypesFromFile
 
 ```ts
-function propertyTypesFromFile<T extends object = object>(file: string): PropertyTypes<T>
+async function propertyTypesFromFile<T extends object = object>(file: string): Promise<PropertyTypes<T>>
 ```
 Parses a declaration TypeScript file and extracts property types from the defined class.
 
@@ -90,7 +96,7 @@ Parses a declaration TypeScript file and extracts property types from the define
 - `file`: Absolute path to the `.js` file. The `.d.ts` file must be in the same directory.
 
 **Returns:**
-`PropertyTypes<T>`: A mapping of property names to their types.
+`Promise<PropertyTypes<T>>`: A promise that resolves to a mapping of property names to their types.
 
 ### strToPrimitiveType
 

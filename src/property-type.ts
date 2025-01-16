@@ -1,6 +1,6 @@
 import Type                   from '@itrocks/class-type'
-import { readFileSync }       from 'node:fs'
-import { dirname, normalize } from 'node:path'
+import { readFileSync }       from 'fs'
+import { dirname, normalize } from 'path'
 import ts                     from 'typescript'
 
 export class CollectionType<T extends object = object, PT extends object = object>

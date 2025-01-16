@@ -26,6 +26,7 @@
 	],
 	"homepage": "https://it.rocks",
 	"keywords": [
+		"backend",
 		"collection",
 		"it.rocks",
 		"parse",
@@ -33,7 +34,6 @@
 		"primitive",
 		"property",
 		"reflection",
-		"typescript",
 		"utility"
 	],
 	"license": "ISC",
@@ -48,5 +48,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json && node esm/esm"
 	},
 	"types": "./esm/property-type.d.ts",
-	"version": "0.0.8"
+	"version": "0.0.9"
 }

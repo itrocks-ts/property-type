@@ -18,13 +18,13 @@ npm install @itrocks/property-type
 
 File `custom-class.ts`:
 ```bash
-export default class CustomClass {}
+export class CustomClass {}
 ```
 
 File `demo.ts`:
 ```bash
-import CustomClass           from './custom-class'
-import propertyTypesFromFile from './property-type'
+import { CustomClass }           from './custom-class'
+import { propertyTypesFromFile } from './property-type'
 
 export class Something {
 	name = 'a string'

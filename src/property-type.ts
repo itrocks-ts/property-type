@@ -1,6 +1,6 @@
-import Type                   from '@itrocks/class-type'
-import { readFileSync }       from 'fs'
-import { dirname, normalize } from 'path'
+import { Type }               from '@itrocks/class-type'
+import { readFileSync }       from 'node:fs'
+import { dirname, normalize } from 'node:path'
 import ts                     from 'typescript'
 
 export class CollectionType<T extends object = object, PT extends object = object>
@@ -17,7 +17,6 @@ export type PropertyTypes<T extends object = object> = Record<string, PropertyTy
 
 type TypeImports = Record<string, { import: string, name: string }>
 
-export default propertyTypesFromFile
 export function propertyTypesFromFile<T extends object = object>(file: string): PropertyTypes<T>
 {
 	const content    = readFileSync(file.substring(0, file.lastIndexOf('.')) + '.d.ts', 'utf8')

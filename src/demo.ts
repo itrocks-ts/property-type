@@ -1,5 +1,5 @@
-import CustomClass           from './custom-class'
-import propertyTypesFromFile from './property-type'
+import { CustomClass }           from './custom-class'
+import { propertyTypesFromFile } from './property-type'
 
 export class Something {
 	name = 'a string'

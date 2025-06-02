@@ -97,6 +97,7 @@ export function strToPrimitiveType(type: string): PrimitiveType | Type
 		case 'n': return Number
 		case 'o': return Object
 		case 's': return (type[1] === 't') ? String : Symbol
+		case "'": return String
 		case 'u': return undefined
 	}
 	return (globalThis as any)[type] as Type

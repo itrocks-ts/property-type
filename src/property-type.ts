@@ -8,10 +8,17 @@ export class CollectionType<T extends object = object, PT extends object = objec
 	constructor(public containerType: Type<T>, public elementType: PrimitiveType | Type<PT>) {}
 }
 
+export class LiteralType
+{
+	constructor(
+		public values = new Array<String>()
+	) {}
+}
+
 export type PrimitiveType = typeof BigInt | Boolean | Number | Object | String | Symbol | undefined
 
 export type PropertyType<T extends object = object, PT extends object = object>
-	= CollectionType<T, PT> | PrimitiveType | Type<PT>
+	= CollectionType<T, PT> | LiteralType | PrimitiveType | Type<PT>
 
 export type PropertyTypes<T extends object = object> = Record<string, PropertyType<T>>
 
@@ -90,6 +97,12 @@ function strToCollectionType(type: string, typeImports: TypeImports): Collection
 	)
 }
 
+function strToLiteralType(type: string): LiteralType
+{
+	const quote = type[0]
+	return new LiteralType(type.split(quote + " | " + quote))
+}
+
 export function strToPrimitiveType(type: string): PrimitiveType | Type
 {
 	switch (type[0]) {
@@ -108,6 +121,9 @@ function strToType(type: string, typeImports: TypeImports): PropertyType
 	const endsWith = type[type.length - 1]
 	if ((endsWith === ']') || (endsWith === '>')) {
 		return strToCollectionType(type, typeImports)
+	}
+	if ((endsWith === "'") || (endsWith === '"')) {
+		return strToLiteralType(type)
 	}
 	const typeImport = typeImports[type]
 	return typeImport

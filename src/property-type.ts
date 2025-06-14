@@ -3,35 +3,137 @@ import { readFileSync }       from 'node:fs'
 import { dirname, normalize } from 'node:path'
 import ts                     from 'typescript'
 
-export class CollectionType<T extends object = object, PT extends object = object>
+type LiteralValue = boolean | number | null | string | undefined
+
+export type PrimitiveTypeType = BigInt | Boolean | Number | Object | String | Symbol | undefined
+
+export class PropertyType
+{ constructor(public type: PrimitiveTypeType, public optional = false) {} }
+
+export class CollectionType extends PropertyType
+{ constructor(type: Type, public elementType: PropertyType) { super(type) } }
+
+export class RecordType extends PropertyType
+{ constructor(public keyType: PropertyType, public elementType: PropertyType) { super(Object) } }
+
+export class IntersectionType extends PropertyType
+{ constructor(public types: PropertyType[]) { super(types[0].type) } }
+
+export class LiteralType extends PropertyType
+{ constructor(public value: LiteralValue) { super(literalValueType(value)) } }
+
+export class PrimitiveType extends PropertyType
+{ constructor(type: PrimitiveTypeType) { super(type) } }
+
+export class TypeType extends PropertyType
+{ constructor(type: Type, public args?: PropertyType[]) { super(type) } }
+
+export class UnionType extends PropertyType
+{ constructor(public types: PropertyType[]) { super(types[0].type) } }
+
+export class UnknownType extends PropertyType
 {
-	constructor(public containerType: Type<T>, public elementType: PrimitiveType | Type<PT>) {}
+	constructor(public raw: string) { super(undefined) }
 }
 
-export class LiteralType
-{
-	constructor(
-		public values = new Array<String>()
-	) {}
-}
-
-export type PrimitiveType = typeof BigInt | Boolean | Number | Object | String | Symbol | undefined
-
-export type PropertyType<T extends object = object, PT extends object = object>
-	= CollectionType<T, PT> | LiteralType | PrimitiveType | Type<PT>
-
-export type PropertyTypes<T extends object = object> = Record<string, PropertyType<T>>
+export type PropertyTypes = Record<string, PropertyType>
 
 type TypeImports = Record<string, { import: string, name: string }>
 
-export function propertyTypesFromFile<T extends object = object>(file: string): PropertyTypes<T>
+export function isLiteral(propertyType: PropertyType, literal?: LiteralValue): boolean
+{
+	return (propertyType instanceof LiteralType) && ((arguments.length === 1) || (propertyType.value === literal))
+}
+
+export function isPrimitive(propertyType: PropertyType, type?: PrimitiveTypeType): boolean
+{
+	return (propertyType instanceof PrimitiveType) && ((arguments.length === 1) || (propertyType.type === type))
+}
+
+export function isType(propertyType: PropertyType, type?: Type): boolean
+{
+	return (propertyType instanceof TypeType) && ((arguments.length === 1) || (propertyType.type === type))
+}
+
+function literalValueType(literal: LiteralValue)
+{
+	switch (typeof literal) {
+		case 'bigint':  return BigInt
+		case 'boolean': return Boolean
+		case 'number':  return Number
+		case 'string':  return String
+		case 'symbol':  return Symbol
+	}
+}
+
+function nodeToLiteralType(node: ts.TypeNode): LiteralType | void
+{
+	if (!ts.isLiteralTypeNode(node)) return
+	const kinds   = ts.SyntaxKind
+	const literal = node.literal
+	switch (literal.kind) {
+		case kinds.FalseKeyword:     return new LiteralType(false)
+		case kinds.NullKeyword:      return new LiteralType(null)
+		case kinds.TrueKeyword:      return new LiteralType(true)
+		case kinds.UndefinedKeyword: return new LiteralType(undefined)
+	}
+	if (ts.isNumericLiteral(literal)) {
+		return new LiteralType(+literal.text)
+	}
+	if (ts.isStringLiteral(literal)) {
+		return new LiteralType(literal.text)
+	}
+}
+
+function nodeToPrimitiveType(node: ts.TypeNode): PrimitiveType | void
+{
+	const kind  = node.kind
+	const kinds = ts.SyntaxKind
+	switch (kind) {
+		case kinds.BigIntKeyword:  return new PrimitiveType(BigInt)
+		case kinds.BooleanKeyword: return new PrimitiveType(Boolean)
+		case kinds.NumberKeyword:  return new PrimitiveType(Number)
+		case kinds.ObjectKeyword:  return new PrimitiveType(Object)
+		case kinds.StringKeyword:  return new PrimitiveType(String)
+		case kinds.SymbolKeyword:  return new PrimitiveType(Symbol)
+	}
+}
+
+function nodeToType(node: ts.TypeNode, typeImports: TypeImports): PropertyType
+{
+	if (ts.isArrayTypeNode(node)) {
+		return new CollectionType(Array, nodeToType(node.elementType, typeImports))
+	}
+	if (ts.isIntersectionTypeNode(node)) {
+		return new IntersectionType(node.types.map(node => nodeToType(node, typeImports)))
+	}
+	if (ts.isUnionTypeNode(node)) {
+		return new UnionType(node.types.map(node => nodeToType(node, typeImports)))
+	}
+	return nodeToLiteralType(node)
+		?? nodeToPrimitiveType(node)
+		?? nodeToTypeType(node, typeImports)
+		?? new UnknownType(node.getText())
+}
+
+function nodeToTypeType(node: ts.TypeNode, typeImports: TypeImports): RecordType | TypeType | void
+{
+	if (!ts.isTypeReferenceNode(node)) return
+	const name = node.typeName.getText()
+	const args = node.typeArguments?.map(node => nodeToType(node, typeImports))
+	return ((name === 'Record') && (args?.length === 2))
+		? new RecordType(args[0], args[1])
+		: new TypeType(strToType(name, typeImports), args)
+}
+
+export function propertyTypesFromFile(file: string): PropertyTypes
 {
 	const content    = readFileSync(file.substring(0, file.lastIndexOf('.')) + '.d.ts', 'utf8')
 	const filePath   = dirname(file)
 	const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
 
-	const propertyTypes: Record<string, PropertyType<T>> = {}
-	const typeImports:   TypeImports      = {}
+	const propertyTypes: PropertyTypes = {}
+	const typeImports:   TypeImports   = {}
 
 	function parseNode(node: ts.Node)
 	{
@@ -65,7 +167,9 @@ export function propertyTypesFromFile<T extends object = object>(file: string): 
 			typeImports[className] = { import: file, name: className }
 			for (const member of node.members) {
 				if (ts.isPropertyDeclaration(member) && member.type) {
-					propertyTypes[(member.name as ts.Identifier).text] = strToType(member.type.getText(), typeImports)
+					const type    = nodeToType(member.type, typeImports)
+					type.optional = !!member.questionToken
+					propertyTypes[(member.name as ts.Identifier).text] = type
 				}
 			}
 			return
@@ -78,55 +182,10 @@ export function propertyTypesFromFile<T extends object = object>(file: string): 
 	return propertyTypes
 }
 
-function strToCollectionType(type: string, typeImports: TypeImports): CollectionType
+function strToType(type: string, typeImports: TypeImports): Type
 {
-	let collectionType: string | undefined
-	let elementType:    string
-	if (type[type.length - 1] === ']') {
-		collectionType = 'Array'
-		elementType    = type.slice(0, -2)
-	}
-	else {
-		const indexOf  = type.indexOf('<')
-		collectionType = type.slice(0, indexOf)
-		elementType    = type.slice(indexOf + 1, -1)
-	}
-	return new CollectionType(
-		strToType(collectionType, typeImports) as Type,
-		strToType(elementType, typeImports)
-	)
-}
-
-function strToLiteralType(type: string): LiteralType
-{
-	const quote = type[0]
-	return new LiteralType(type.split(quote + " | " + quote))
-}
-
-export function strToPrimitiveType(type: string): PrimitiveType | Type
-{
-	switch (type[0]) {
-		case 'b': return (type[1] === 'i') ? BigInt : Boolean
-		case 'n': return Number
-		case 'o': return Object
-		case 's': return (type[1] === 't') ? String : Symbol
-		case "'": return String
-		case 'u': return undefined
-	}
-	return (globalThis as any)[type] as Type
-}
-
-function strToType(type: string, typeImports: TypeImports): PropertyType
-{
-	const endsWith = type[type.length - 1]
-	if ((endsWith === ']') || (endsWith === '>')) {
-		return strToCollectionType(type, typeImports)
-	}
-	if ((endsWith === "'") || (endsWith === '"')) {
-		return strToLiteralType(type)
-	}
 	const typeImport = typeImports[type]
 	return typeImport
 		? require(typeImport.import)[typeImport.name]
-		: strToPrimitiveType(type)
+		: (globalThis as any)[type]
 }

@@ -5,31 +5,40 @@ import ts                     from 'typescript'
 
 type LiteralValue = boolean | number | null | string | undefined
 
-export type PrimitiveTypeType = BigInt | Boolean | Number | Object | String | Symbol | undefined
+export type Canonical = BigInt | Boolean | Number | Object | String | Symbol | undefined
 
 export class PropertyType
-{ constructor(public type: PrimitiveTypeType, public optional = false) {} }
+{
+	constructor(public type: Canonical, public optional = false) {}
+	get lead() { return this.type }
+}
+
+export class CanonicalType extends PropertyType
+{ constructor(type: Canonical) { super(type) } }
 
 export class CollectionType extends PropertyType
 { constructor(type: Type, public elementType: PropertyType) { super(type) } }
 
+export class CompositeType extends PropertyType
+{
+	constructor(public types: PropertyType[]) { super(types[0].type) }
+	get lead() { return this.types[0].lead }
+}
+
 export class RecordType extends PropertyType
 { constructor(public keyType: PropertyType, public elementType: PropertyType) { super(Object) } }
 
-export class IntersectionType extends PropertyType
-{ constructor(public types: PropertyType[]) { super(types[0].type) } }
+export class IntersectionType extends CompositeType
+{}
 
 export class LiteralType extends PropertyType
 { constructor(public value: LiteralValue) { super(literalValueType(value)) } }
 
-export class PrimitiveType extends PropertyType
-{ constructor(type: PrimitiveTypeType) { super(type) } }
-
 export class TypeType extends PropertyType
 { constructor(type: Type, public args?: PropertyType[]) { super(type) } }
 
-export class UnionType extends PropertyType
-{ constructor(public types: PropertyType[]) { super(types[0].type) } }
+export class UnionType extends CompositeType
+{}
 
 export class UnknownType extends PropertyType
 {
@@ -40,14 +49,14 @@ export type PropertyTypes = Record<string, PropertyType>
 
 type TypeImports = Record<string, { import: string, name: string }>
 
+export function isCanonical(propertyType: PropertyType, type?: Canonical): boolean
+{
+	return (propertyType instanceof CanonicalType) && ((arguments.length === 1) || (propertyType.type === type))
+}
+
 export function isLiteral(propertyType: PropertyType, literal?: LiteralValue): boolean
 {
 	return (propertyType instanceof LiteralType) && ((arguments.length === 1) || (propertyType.value === literal))
-}
-
-export function isPrimitive(propertyType: PropertyType, type?: PrimitiveTypeType): boolean
-{
-	return (propertyType instanceof PrimitiveType) && ((arguments.length === 1) || (propertyType.type === type))
 }
 
 export function isType(propertyType: PropertyType, type?: Type): boolean
@@ -63,6 +72,20 @@ function literalValueType(literal: LiteralValue)
 		case 'number':  return Number
 		case 'string':  return String
 		case 'symbol':  return Symbol
+	}
+}
+
+function nodeToCanonicalType(node: ts.TypeNode): CanonicalType | void
+{
+	const kind  = node.kind
+	const kinds = ts.SyntaxKind
+	switch (kind) {
+		case kinds.BigIntKeyword:  return new CanonicalType(BigInt)
+		case kinds.BooleanKeyword: return new CanonicalType(Boolean)
+		case kinds.NumberKeyword:  return new CanonicalType(Number)
+		case kinds.ObjectKeyword:  return new CanonicalType(Object)
+		case kinds.StringKeyword:  return new CanonicalType(String)
+		case kinds.SymbolKeyword:  return new CanonicalType(Symbol)
 	}
 }
 
@@ -85,20 +108,6 @@ function nodeToLiteralType(node: ts.TypeNode): LiteralType | void
 	}
 }
 
-function nodeToPrimitiveType(node: ts.TypeNode): PrimitiveType | void
-{
-	const kind  = node.kind
-	const kinds = ts.SyntaxKind
-	switch (kind) {
-		case kinds.BigIntKeyword:  return new PrimitiveType(BigInt)
-		case kinds.BooleanKeyword: return new PrimitiveType(Boolean)
-		case kinds.NumberKeyword:  return new PrimitiveType(Number)
-		case kinds.ObjectKeyword:  return new PrimitiveType(Object)
-		case kinds.StringKeyword:  return new PrimitiveType(String)
-		case kinds.SymbolKeyword:  return new PrimitiveType(Symbol)
-	}
-}
-
 function nodeToType(node: ts.TypeNode, typeImports: TypeImports): PropertyType
 {
 	if (ts.isArrayTypeNode(node)) {
@@ -110,8 +119,8 @@ function nodeToType(node: ts.TypeNode, typeImports: TypeImports): PropertyType
 	if (ts.isUnionTypeNode(node)) {
 		return new UnionType(node.types.map(node => nodeToType(node, typeImports)))
 	}
-	return nodeToLiteralType(node)
-		?? nodeToPrimitiveType(node)
+	return nodeToCanonicalType(node)
+		?? nodeToLiteralType(node)
 		?? nodeToTypeType(node, typeImports)
 		?? new UnknownType(node.getText())
 }

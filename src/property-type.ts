@@ -137,7 +137,7 @@ function nodeToTypeType(node: ts.TypeNode, typeImports: TypeImports): RecordType
 
 export function propertyTypesFromFile(file: string): PropertyTypes
 {
-	const content    = readFileSync(file.substring(0, file.lastIndexOf('.')) + '.d.ts', 'utf8')
+	const content    = readFile(file)
 	const filePath   = dirname(file)
 	const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
 
@@ -189,6 +189,17 @@ export function propertyTypesFromFile(file: string): PropertyTypes
 
 	parseNode(sourceFile)
 	return propertyTypes
+}
+
+function readFile(file: string)
+{
+	try {
+		return readFileSync(file.substring(0, file.lastIndexOf('.')) + '.d.ts', 'utf8')
+	}
+	catch (exception) {
+		console.error('file', file)
+		throw exception
+	}
 }
 
 function strToType(type: string, typeImports: TypeImports): Type

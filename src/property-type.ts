@@ -1,7 +1,9 @@
-import { Type }               from '@itrocks/class-type'
-import { readFileSync }       from 'node:fs'
-import { dirname, normalize } from 'node:path'
-import ts                     from 'typescript'
+import { KeyOf }        from '@itrocks/class-type'
+import { Type }         from '@itrocks/class-type'
+import { readFileSync } from 'node:fs'
+import { dirname }      from 'node:path'
+import { normalize }    from 'node:path'
+import ts               from 'typescript'
 
 type LiteralValue = boolean | number | null | string | undefined
 
@@ -25,6 +27,13 @@ export class CompositeType extends PropertyType
 	get lead() { return this.types[0].lead }
 }
 
+type DeferredModule = Record<string, Type | undefined>
+export class DeferredType<T extends DeferredModule = DeferredModule>
+{
+	constructor(public module: T, public exportedName: KeyOf<T>) {}
+	resolve() { return this.module[this.exportedName] }
+}
+
 export class RecordType extends PropertyType
 { constructor(public keyType: PropertyType, public elementType: PropertyType) { super(Object) } }
 
@@ -35,15 +44,21 @@ export class LiteralType extends PropertyType
 { constructor(public value: LiteralValue) { super(literalValueType(value)) } }
 
 export class TypeType extends PropertyType
-{ constructor(type: Type, public args?: PropertyType[]) { super(type) } }
+{
+	constructor(type: DeferredType | Type, public args?: PropertyType[]) { super(type) }
+	get lead() {
+		if ((this.type instanceof DeferredType) && this.type.resolve()) {
+			this.type = this.type.resolve()
+		}
+		return this.type
+	}
+}
 
 export class UnionType extends CompositeType
 {}
 
 export class UnknownType extends PropertyType
-{
-	constructor(public raw: string) { super(undefined) }
-}
+{ constructor(public raw: string) { super(undefined) } }
 
 export type PropertyTypes = Record<string, PropertyType>
 
@@ -197,15 +212,20 @@ function readFile(file: string)
 		return readFileSync(file.substring(0, file.lastIndexOf('.')) + '.d.ts', 'utf8')
 	}
 	catch (exception) {
-		console.error('file', file)
+		console.error('property-type: error reading file', file)
 		throw exception
 	}
 }
 
-function strToType(type: string, typeImports: TypeImports): Type
+function strToType(type: string, typeImports: TypeImports): DeferredType | Type
 {
 	const typeImport = typeImports[type]
-	return typeImport
-		? require(typeImport.import)[typeImport.name]
-		: (globalThis as any)[type]
+	if (typeImport) {
+		const required     = require(typeImport.import)
+		const importedType = required[typeImport.name]
+		return (importedType === undefined)
+			? new DeferredType(required, typeImport.name)
+			: importedType
+	}
+	return (globalThis as any)[type]
 }

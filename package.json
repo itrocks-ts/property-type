@@ -5,11 +5,11 @@
 	},
 	"dependencies": {
 		"@itrocks/class-type": "latest",
-		"typescript": "~5.8"
+		"typescript": "~5.9"
 	},
 	"description": "Runtime type reflection from TypeScript declaration files for properties",
 	"devDependencies": {
-		"@types/node": "^22.10"
+		"@types/node": "^24.10"
 	},
 	"engines": {
 		"node": ">=18"
@@ -49,5 +49,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json && node esm/esm"
 	},
 	"types": "./esm/property-type.d.ts",
-	"version": "0.1.4"
+	"version": "0.1.5"
 }

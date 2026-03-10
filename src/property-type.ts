@@ -60,7 +60,7 @@ export class UnionType extends CompositeType
 export class UnknownType extends PropertyType
 { constructor(public raw: string) { super(undefined) } }
 
-export type PropertyTypes = Record<string, PropertyType>
+export type PropertyTypes<T extends object = object> = Record<KeyOf<T>, PropertyType>
 
 type TypeImports = Record<string, { import: string, name: string }>
 
@@ -150,14 +150,14 @@ function nodeToTypeType(node: ts.TypeNode, typeImports: TypeImports): RecordType
 		: new TypeType(strToType(name, typeImports), args)
 }
 
-export function propertyTypesFromFile(file: string): PropertyTypes
+export function propertyTypesFromFile<T extends object = object>(file: string): PropertyTypes<T>
 {
 	const content    = readFile(file)
 	const filePath   = dirname(file)
 	const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
 
-	const propertyTypes: PropertyTypes = {}
-	const typeImports:   TypeImports   = {}
+	const propertyTypes = {} as PropertyTypes<T>
+	const typeImports   = {} as TypeImports
 
 	function parseNode(node: ts.Node)
 	{
@@ -193,7 +193,7 @@ export function propertyTypesFromFile(file: string): PropertyTypes
 				if (ts.isPropertyDeclaration(member) && member.type) {
 					const type    = nodeToType(member.type, typeImports)
 					type.optional = !!member.questionToken
-					propertyTypes[(member.name as ts.Identifier).text] = type
+					propertyTypes[(member.name as ts.Identifier).text as KeyOf<T>] = type
 				}
 			}
 			return

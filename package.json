@@ -4,7 +4,6 @@
 		"email": "baptiste@pillot.fr"
 	},
 	"dependencies": {
-		"@itrocks/class-type": "latest",
 		"typescript": "~5.9"
 	},
 	"description": "Runtime type reflection from TypeScript declaration files for properties",
@@ -49,5 +48,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json && node esm/esm"
 	},
 	"types": "./esm/property-type.d.ts",
-	"version": "0.1.6"
+	"version": "0.2.0"
 }

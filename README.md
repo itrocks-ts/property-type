@@ -96,18 +96,20 @@ Parses a declaration TypeScript file and extracts property types from the define
 **Returns:**
 `PropertyTypes<T>`: A mapping of property names to their types.
 
-### strToPrimitiveType
+## Types
+
+### Type
 
 ```ts
-function strToPrimitiveType(type: string): PrimitiveType | Type
+type Type<T extends object = object> = new (...args: unknown[]) => T
 ```
-Converts a string representation of a [primitive type](https://developer.mozilla.org/docs/Glossary/Primitive)
-into the corresponding `PrimitiveType`.
+Represents a class constructor for objects of type `T`.
 
-This function only works for JavaScript primitive type strings
-and does not handle `CollectionType` or custom class `Type`.
+This is used when a property type is described by its JavaScript class rather than by a primitive type name.
 
-## Types
+This type is documented here because it is referenced in other type definitions,
+but it is not part of this package public API. If you need a published reusable definition,
+you can use the equivalent type provided by [@itrocks/class-type](https://github.com:itrocks-ts/class-type).
 
 ### PrimitiveType
 

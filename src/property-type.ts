@@ -1,13 +1,13 @@
-import { KeyOf }        from '@itrocks/class-type'
-import { Type }         from '@itrocks/class-type'
 import { readFileSync } from 'node:fs'
 import { dirname }      from 'node:path'
 import { normalize }    from 'node:path'
 import ts               from 'typescript'
 
+export type Canonical = BigInt | Boolean | Number | Object | String | Symbol | undefined
+
 type LiteralValue = boolean | number | null | string | undefined
 
-export type Canonical = BigInt | Boolean | Number | Object | String | Symbol | undefined
+type Type<T extends object = object> = new (...args: unknown[]) => T
 
 export class PropertyType
 {
@@ -30,7 +30,7 @@ export class CompositeType extends PropertyType
 type DeferredModule = Record<string, Type | undefined>
 export class DeferredType<T extends DeferredModule = DeferredModule>
 {
-	constructor(public module: T, public exportedName: KeyOf<T>) {}
+	constructor(public module: T, public exportedName: keyof T) {}
 	resolve() { return this.module[this.exportedName] }
 }
 
@@ -60,9 +60,16 @@ export class UnionType extends CompositeType
 export class UnknownType extends PropertyType
 { constructor(public raw: string) { super(undefined) } }
 
-export type PropertyTypes<T extends object = object> = Record<KeyOf<T>, PropertyType>
+export type PropertyTypes<T extends object = object, K extends keyof T = keyof T> = Record<K, PropertyType>
 
 type TypeImports = Record<string, { import: string, name: string }>
+
+function getPropertyName(name: ts.PropertyName): string | undefined
+{
+	return (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name))
+		? name.text
+		: undefined
+}
 
 export function isCanonical(propertyType: PropertyType, type?: Canonical): boolean
 {
@@ -175,8 +182,8 @@ export function propertyTypesFromFile<T extends object = object>(file: string): 
 			const namedBindings = node.importClause.namedBindings
 			if (namedBindings && ts.isNamedImports(namedBindings)) {
 				for (const importSpecifier of namedBindings.elements) {
-					const name  = importSpecifier.name.getText()
-					const alias = importSpecifier.propertyName?.getText() ?? name
+					const alias = importSpecifier.name.getText()
+					const name  = importSpecifier.propertyName?.getText() ?? alias
 					typeImports[alias] = { import: importFile, name }
 				}
 			}
@@ -190,11 +197,10 @@ export function propertyTypesFromFile<T extends object = object>(file: string): 
 			const className        = node.name.getText()
 			typeImports[className] = { import: file, name: className }
 			for (const member of node.members) {
-				if (ts.isPropertyDeclaration(member) && member.type) {
-					const type    = nodeToType(member.type, typeImports)
-					type.optional = !!member.questionToken
-					propertyTypes[(member.name as ts.Identifier).text as KeyOf<T>] = type
-				}
+				if (!ts.isPropertyDeclaration(member) || !member.type) continue
+				const type    = nodeToType(member.type, typeImports)
+				type.optional = !!member.questionToken
+				propertyTypes[getPropertyName(member.name) as keyof T] = type
 			}
 			return
 		}

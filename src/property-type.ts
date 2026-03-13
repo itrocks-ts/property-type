@@ -62,6 +62,7 @@ export class UnknownType extends PropertyType
 
 export type PropertyTypes<T extends object = object, K extends keyof T = keyof T> = Record<K, PropertyType>
 
+type TypeAliases = Record<string, ts.TypeNode>
 type TypeImports = Record<string, { import: string, name: string }>
 
 function getPropertyName(name: ts.PropertyName): string | undefined
@@ -84,6 +85,19 @@ export function isLiteral(propertyType: PropertyType, literal?: LiteralValue): b
 export function isType(propertyType: PropertyType, type?: Type): boolean
 {
 	return (propertyType instanceof TypeType) && ((arguments.length === 1) || (propertyType.type === type))
+}
+
+function literalUnionToCanonicalType(types: PropertyType[]): CanonicalType | void
+{
+	if (!types.length) return
+	if (!types.every(type => type instanceof LiteralType)) return
+
+	const firstType = types[0].type
+	if (firstType === undefined) return
+
+	if (types.every(type => type.type === firstType)) {
+		return new CanonicalType(firstType as Canonical)
+	}
 }
 
 function literalValueType(literal: LiteralValue)
@@ -130,31 +144,45 @@ function nodeToLiteralType(node: ts.TypeNode): LiteralType | void
 	}
 }
 
-function nodeToType(node: ts.TypeNode, typeImports: TypeImports): PropertyType
+function nodeToType(node: ts.TypeNode, typeImports: TypeImports, typeAliases: TypeAliases): PropertyType
 {
 	if (ts.isArrayTypeNode(node)) {
-		return new CollectionType(Array, nodeToType(node.elementType, typeImports))
+		return new CollectionType(Array, nodeToType(node.elementType, typeImports, typeAliases))
 	}
 	if (ts.isIntersectionTypeNode(node)) {
-		return new IntersectionType(node.types.map(node => nodeToType(node, typeImports)))
+		return new IntersectionType(node.types.map(node => nodeToType(node, typeImports, typeAliases)))
 	}
 	if (ts.isUnionTypeNode(node)) {
-		return new UnionType(node.types.map(node => nodeToType(node, typeImports)))
+		const types = node.types.map(node => nodeToType(node, typeImports, typeAliases))
+		return literalUnionToCanonicalType(types) ?? new UnionType(types)
 	}
 	return nodeToCanonicalType(node)
 		?? nodeToLiteralType(node)
-		?? nodeToTypeType(node, typeImports)
+		?? nodeToTypeType(node, typeImports, typeAliases)
 		?? new UnknownType(node.getText())
 }
 
-function nodeToTypeType(node: ts.TypeNode, typeImports: TypeImports): RecordType | TypeType | void
+function nodeToTypeType(
+	node: ts.TypeNode,
+	typeImports: TypeImports,
+	typeAliases: TypeAliases
+): RecordType | TypeType | PropertyType | void
 {
 	if (!ts.isTypeReferenceNode(node)) return
+
 	const name = node.typeName.getText()
-	const args = node.typeArguments?.map(node => nodeToType(node, typeImports))
-	return ((name === 'Record') && (args?.length === 2))
-		? new RecordType(args[0], args[1])
-		: new TypeType(strToType(name, typeImports), args)
+	const args = node.typeArguments?.map(node => nodeToType(node, typeImports, typeAliases))
+
+	if ((name === 'Record') && (args?.length === 2)) {
+		return new RecordType(args[0], args[1])
+	}
+
+	const alias = typeAliases[name]
+	if (alias) {
+		return nodeToType(alias, typeImports, typeAliases)
+	}
+
+	return new TypeType(strToType(name, typeImports), args)
 }
 
 export function propertyTypesFromFile<T extends object = object>(file: string): PropertyTypes<T>
@@ -164,6 +192,7 @@ export function propertyTypesFromFile<T extends object = object>(file: string): 
 	const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
 
 	const propertyTypes = {} as PropertyTypes<T>
+	const typeAliases   = {} as TypeAliases
 	const typeImports   = {} as TypeImports
 
 	function parseNode(node: ts.Node)
@@ -190,6 +219,14 @@ export function propertyTypesFromFile<T extends object = object>(file: string): 
 		}
 
 		if (
+			ts.isTypeAliasDeclaration(node)
+			&& node.name
+			&& node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
+		) {
+			typeAliases[node.name.getText()] = node.type
+		}
+
+		if (
 			ts.isClassDeclaration(node)
 			&& node.name
 			&& node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
@@ -198,7 +235,7 @@ export function propertyTypesFromFile<T extends object = object>(file: string): 
 			typeImports[className] = { import: file, name: className }
 			for (const member of node.members) {
 				if (!ts.isPropertyDeclaration(member) || !member.type) continue
-				const type    = nodeToType(member.type, typeImports)
+				const type    = nodeToType(member.type, typeImports, typeAliases)
 				type.optional = !!member.questionToken
 				propertyTypes[getPropertyName(member.name) as keyof T] = type
 			}

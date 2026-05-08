@@ -4,24 +4,21 @@
 		"email": "baptiste@pillot.fr"
 	},
 	"dependencies": {
-		"typescript": "~6.0"
+		"typescript": "^6.0"
 	},
 	"description": "Runtime type reflection from TypeScript declaration files for properties",
 	"devDependencies": {
 		"@types/node": "^24.10"
 	},
 	"engines": {
-		"node": ">=18"
+		"node": ">=24"
 	},
-	"exports": {
-		"import": "./esm/property-type.js",
-		"require": "./cjs/property-type.js"
-	},
+	"exports": "./cjs/property-type.js",
 	"files": [
 		"LICENSE",
 		"README.md",
-		"*/property-type.d.ts",
-		"*/property-type.js"
+		"cjs/property-type.d.ts",
+		"cjs/property-type.js"
 	],
 	"homepage": "https://it.rocks",
 	"keywords": [
@@ -43,10 +40,7 @@
 		"url": "git+https://github.com/itrocks-ts/property-type.git"
 	},
 	"scripts": {
-		"build": "npm run build:cjs && npm run build:esm",
-		"build:cjs": "tsc -p tsconfig.cjs.json",
-		"build:esm": "tsc -p tsconfig.esm.json && node esm/esm"
+		"build": "tsc"
 	},
-	"types": "./esm/property-type.d.ts",
-	"version": "0.2.2"
+	"version": "0.2.3"
 }

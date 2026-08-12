@@ -4,11 +4,12 @@
 		"email": "baptiste@pillot.fr"
 	},
 	"dependencies": {
-		"typescript": "^7.0"
+		"@itrocks/ast": "latest"
 	},
 	"description": "Runtime type reflection from TypeScript declaration files for properties",
 	"devDependencies": {
-		"@types/node": "^24.10"
+		"@types/node": "^24.10",
+		"typescript": "^7.0"
 	},
 	"engines": {
 		"node": ">=24"
@@ -43,5 +44,5 @@
 		"build": "tsc",
 		"test": "npm run build && node --test --test-isolation=none test/*.test.js"
 	},
-	"version": "0.3.0"
+	"version": "0.4.0"
 }

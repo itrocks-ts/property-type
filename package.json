@@ -4,7 +4,7 @@
 		"email": "baptiste@pillot.fr"
 	},
 	"dependencies": {
-		"typescript": "^6.0"
+		"typescript": "^7.0"
 	},
 	"description": "Runtime type reflection from TypeScript declaration files for properties",
 	"devDependencies": {
@@ -40,7 +40,8 @@
 		"url": "git+https://github.com/itrocks-ts/property-type.git"
 	},
 	"scripts": {
-		"build": "tsc"
+		"build": "tsc",
+		"test": "npm run build && node --test --test-isolation=none test/*.test.js"
 	},
-	"version": "0.2.3"
+	"version": "0.3.0"
 }

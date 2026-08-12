@@ -1,7 +1,24 @@
-import { readFileSync } from 'node:fs'
-import { dirname }      from 'node:path'
-import { normalize }    from 'node:path'
-import ts               from 'typescript'
+import { dirname }                from 'node:path'
+import { normalize }              from 'node:path'
+import { resolve }                from 'node:path'
+import { isArrayTypeNode }        from 'typescript/unstable/ast'
+import { isClassDeclaration }     from 'typescript/unstable/ast'
+import { isIdentifier }           from 'typescript/unstable/ast'
+import { isImportDeclaration }    from 'typescript/unstable/ast'
+import { isIntersectionTypeNode } from 'typescript/unstable/ast'
+import { isLiteralTypeNode }      from 'typescript/unstable/ast'
+import { isNamedImports }         from 'typescript/unstable/ast'
+import { isNumericLiteral }       from 'typescript/unstable/ast'
+import { isPropertyDeclaration }  from 'typescript/unstable/ast'
+import { isStringLiteral }        from 'typescript/unstable/ast'
+import { isTypeAliasDeclaration } from 'typescript/unstable/ast'
+import { isTypeReferenceNode }    from 'typescript/unstable/ast'
+import { isUnionTypeNode }        from 'typescript/unstable/ast'
+import { type Node }              from 'typescript/unstable/ast'
+import { type PropertyName }      from 'typescript/unstable/ast'
+import { SyntaxKind }             from 'typescript/unstable/ast'
+import { type TypeNode }          from 'typescript/unstable/ast'
+import { API }                    from 'typescript/unstable/sync'
 
 export type Canonical = BigInt | Boolean | Number | Object | String | Symbol | undefined
 
@@ -62,12 +79,12 @@ export class UnknownType extends PropertyType
 
 export type PropertyTypes<T extends object = object, K extends keyof T = keyof T> = Record<K, PropertyType>
 
-type TypeAliases = Record<string, ts.TypeNode>
+type TypeAliases = Record<string, TypeNode>
 type TypeImports = Record<string, { import: string, name: string }>
 
-function getPropertyName(name: ts.PropertyName): string | undefined
+function getPropertyName(name: PropertyName): string | undefined
 {
-	return (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name))
+	return (isIdentifier(name) || isStringLiteral(name) || isNumericLiteral(name))
 		? name.text
 		: undefined
 }
@@ -111,10 +128,10 @@ function literalValueType(literal: LiteralValue)
 	}
 }
 
-function nodeToCanonicalType(node: ts.TypeNode): CanonicalType | void
+function nodeToCanonicalType(node: TypeNode): CanonicalType | void
 {
 	const kind  = node.kind
-	const kinds = ts.SyntaxKind
+	const kinds = SyntaxKind
 	switch (kind) {
 		case kinds.BigIntKeyword:  return new CanonicalType(BigInt)
 		case kinds.BooleanKeyword: return new CanonicalType(Boolean)
@@ -125,10 +142,10 @@ function nodeToCanonicalType(node: ts.TypeNode): CanonicalType | void
 	}
 }
 
-function nodeToLiteralType(node: ts.TypeNode): LiteralType | void
+function nodeToLiteralType(node: TypeNode): LiteralType | void
 {
-	if (!ts.isLiteralTypeNode(node)) return
-	const kinds   = ts.SyntaxKind
+	if (!isLiteralTypeNode(node)) return
+	const kinds   = SyntaxKind
 	const literal = node.literal
 	switch (literal.kind) {
 		case kinds.FalseKeyword:     return new LiteralType(false)
@@ -136,23 +153,23 @@ function nodeToLiteralType(node: ts.TypeNode): LiteralType | void
 		case kinds.TrueKeyword:      return new LiteralType(true)
 		case kinds.UndefinedKeyword: return new LiteralType(undefined)
 	}
-	if (ts.isNumericLiteral(literal)) {
+	if (isNumericLiteral(literal)) {
 		return new LiteralType(+literal.text)
 	}
-	if (ts.isStringLiteral(literal)) {
+	if (isStringLiteral(literal)) {
 		return new LiteralType(literal.text)
 	}
 }
 
-function nodeToType(node: ts.TypeNode, typeImports: TypeImports, typeAliases: TypeAliases): PropertyType
+function nodeToType(node: TypeNode, typeImports: TypeImports, typeAliases: TypeAliases): PropertyType
 {
-	if (ts.isArrayTypeNode(node)) {
+	if (isArrayTypeNode(node)) {
 		return new CollectionType(Array, nodeToType(node.elementType, typeImports, typeAliases))
 	}
-	if (ts.isIntersectionTypeNode(node)) {
+	if (isIntersectionTypeNode(node)) {
 		return new IntersectionType(node.types.map(node => nodeToType(node, typeImports, typeAliases)))
 	}
-	if (ts.isUnionTypeNode(node)) {
+	if (isUnionTypeNode(node)) {
 		const types = node.types.map(node => nodeToType(node, typeImports, typeAliases))
 		return literalUnionToCanonicalType(types) ?? new UnionType(types)
 	}
@@ -163,12 +180,12 @@ function nodeToType(node: ts.TypeNode, typeImports: TypeImports, typeAliases: Ty
 }
 
 function nodeToTypeType(
-	node: ts.TypeNode,
+	node: TypeNode,
 	typeImports: TypeImports,
 	typeAliases: TypeAliases
 ): RecordType | TypeType | PropertyType | void
 {
-	if (!ts.isTypeReferenceNode(node)) return
+	if (!isTypeReferenceNode(node)) return
 
 	const name = node.typeName.getText()
 	const args = node.typeArguments?.map(node => nodeToType(node, typeImports, typeAliases))
@@ -187,76 +204,79 @@ function nodeToTypeType(
 
 export function propertyTypesFromFile<T extends object = object>(file: string): PropertyTypes<T>
 {
-	const content    = readFile(file)
-	const filePath   = dirname(file)
-	const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
+	const runtimeFile     = resolve(file)
+	const declarationFile = runtimeFile.substring(0, runtimeFile.lastIndexOf('.')) + '.d.ts'
+	const filePath        = dirname(runtimeFile)
+	const api             = new API({ cwd: filePath })
 
-	const propertyTypes = {} as PropertyTypes<T>
-	const typeAliases   = {} as TypeAliases
-	const typeImports   = {} as TypeImports
+	try {
+		const snapshot   = api.updateSnapshot({ openFiles: [declarationFile] })
+		const project    = snapshot.getDefaultProjectForFile(declarationFile)
+		const sourceFile = project?.program.getSourceFile(declarationFile)
+		if (!sourceFile) {
+			throw new Error('TypeScript could not parse declaration file: ' + declarationFile)
+		}
 
-	function parseNode(node: ts.Node)
-	{
-		if (ts.isImportDeclaration(node) && node.importClause) {
-			let importPath = (node.moduleSpecifier as ts.StringLiteral).text
-			if ((importPath[0] === '.') && !importPath.endsWith('.js')) {
-				importPath += '.js'
-			}
-			const importFile = (importPath[0] === '.')
-				? normalize(filePath + '/' + importPath)
-				: importPath
-			if (node.importClause.name) {
-				typeImports[node.importClause.name.getText()] = { import: importFile, name: 'default' }
-			}
-			const namedBindings = node.importClause.namedBindings
-			if (namedBindings && ts.isNamedImports(namedBindings)) {
-				for (const importSpecifier of namedBindings.elements) {
-					const alias = importSpecifier.name.getText()
-					const name  = importSpecifier.propertyName?.getText() ?? alias
-					typeImports[alias] = { import: importFile, name }
+		const propertyTypes = {} as PropertyTypes<T>
+		const typeAliases   = {} as TypeAliases
+		const typeImports   = {} as TypeImports
+
+		function parseNode(node: Node)
+		{
+			if (isImportDeclaration(node) && node.importClause && isStringLiteral(node.moduleSpecifier)) {
+				let importPath = node.moduleSpecifier.text
+				if ((importPath[0] === '.') && !importPath.endsWith('.js')) {
+					importPath += '.js'
+				}
+				const importFile = (importPath[0] === '.')
+					? normalize(filePath + '/' + importPath)
+					: importPath
+				if (node.importClause.name) {
+					typeImports[node.importClause.name.text] = { import: importFile, name: 'default' }
+				}
+				const namedBindings = node.importClause.namedBindings
+				if (namedBindings && isNamedImports(namedBindings)) {
+					for (const importSpecifier of namedBindings.elements) {
+						const alias = importSpecifier.name.text
+						const name  = importSpecifier.propertyName?.text ?? alias
+						typeImports[alias] = { import: importFile, name }
+					}
 				}
 			}
-		}
 
-		if (
-			ts.isTypeAliasDeclaration(node)
-			&& node.name
-			&& node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
-		) {
-			typeAliases[node.name.getText()] = node.type
-		}
-
-		if (
-			ts.isClassDeclaration(node)
-			&& node.name
-			&& node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
-		) {
-			const className        = node.name.getText()
-			typeImports[className] = { import: file, name: className }
-			for (const member of node.members) {
-				if (!ts.isPropertyDeclaration(member) || !member.type) continue
-				const type    = nodeToType(member.type, typeImports, typeAliases)
-				type.optional = !!member.questionToken
-				propertyTypes[getPropertyName(member.name) as keyof T] = type
+			if (
+				isTypeAliasDeclaration(node)
+				&& node.modifiers?.some(modifier => modifier.kind === SyntaxKind.ExportKeyword)
+			) {
+				typeAliases[node.name.text] = node.type
 			}
-			return
+
+			if (
+				isClassDeclaration(node)
+				&& node.name
+				&& node.modifiers?.some(modifier => modifier.kind === SyntaxKind.ExportKeyword)
+			) {
+				const className        = node.name.text
+				typeImports[className] = { import: runtimeFile, name: className }
+				for (const member of node.members) {
+					if (!isPropertyDeclaration(member) || !member.type) continue
+					const propertyName = getPropertyName(member.name)
+					if (propertyName === undefined) continue
+					const type    = nodeToType(member.type, typeImports, typeAliases)
+					type.optional = member.postfixToken?.kind === SyntaxKind.QuestionToken
+					propertyTypes[propertyName as keyof T] = type
+				}
+				return
+			}
+
+			node.forEachChild(parseNode)
 		}
 
-		ts.forEachChild(node, parseNode)
+		parseNode(sourceFile)
+		return propertyTypes
 	}
-
-	parseNode(sourceFile)
-	return propertyTypes
-}
-
-function readFile(file: string)
-{
-	try {
-		return readFileSync(file.substring(0, file.lastIndexOf('.')) + '.d.ts', 'utf8')
-	}
-	catch (exception) {
-		console.error('property-type: error reading file', file)
-		throw exception
+	finally {
+		api.close()
 	}
 }
 

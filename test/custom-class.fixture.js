@@ -1,0 +1,1 @@
+exports.CustomClass = class CustomClass {}
